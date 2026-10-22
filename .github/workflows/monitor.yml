@@ -22,12 +22,13 @@ jobs:
 
       - name: Run monitor
         run: |
-          MONITOR="./Monitor_Collection.json"
+          MONITOR=$(ls Production_Monitor_ReqRes*.json | head -n 1)
+          echo "Monitor collection: $MONITOR"
 
-          if [ ! -f "$MONITOR" ]; then
-            echo "Missing file: $MONITOR"
-            find . -maxdepth 2 -type f -not -path './.git/*' | sort
+          if [ -z "$MONITOR" ]; then
+            echo "Khong tim thay file Production_Monitor_ReqRes*.json"
+            ls -la
             exit 1
           fi
 
-          newman run "$MONITOR"
+          newman run "$MONITOR" --env-var "api_key=${{ secrets.REQRES_API_KEY }}"
