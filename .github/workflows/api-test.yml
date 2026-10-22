@@ -41,6 +41,7 @@ jobs:
           newman run "$COLLECTION" \
             -e "$ENVFILE" \
             -d users.csv \
+            --env-var "baseUrl=https://reqres.in" \
             --env-var "api_key=${{ secrets.REQRES_API_KEY }}" \
             --reporters cli,htmlextra \
             --reporter-htmlextra-export ./newman/report.html
