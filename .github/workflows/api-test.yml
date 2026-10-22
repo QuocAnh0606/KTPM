@@ -1,55 +1,53 @@
-name: Restful-Booker CI Pipeline
+name: ReqRes API Test
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   api-testing:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Lấy code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 2. Cài Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: 3. Cài Newman
-        run: npm install -g newman
+      - name: Install Newman and htmlextra reporter
+        run: npm install -g newman newman-reporter-htmlextra
 
-      - name: 4. Chạy bộ Test tự động
+      - name: Run data-driven tests (users.csv)
         run: |
-          echo "=== File trong repo ==="
           ls -la
 
-          COLLECTION=$(find . -name "*.postman_collection.json" | head -n 1)
-          ENVFILE=$(find . -name "*.postman_environment.json" | head -n 1)
-          DATA=$(find . -name "booking_data.csv" | head -n 1)
-          USERDATA=$(find . -name "user.csv" | head -n 1)
+          # Tự dò file environment (nội dung có _postman_variable_scope)
+          ENVFILE=$(grep -l '"_postman_variable_scope"' *.json | head -n 1)
+          # Tự dò file collection chính (bỏ qua file Monitor và environment)
+          COLLECTION=$(ls *.json | grep -v -i 'monitor' | grep -v -F "$ENVFILE" | head -n 1)
 
           echo "Collection: $COLLECTION"
           echo "Environment: $ENVFILE"
-          echo "Data: $DATA"
-          echo "User Data: $USERDATA"
 
-          if [ -z "$COLLECTION" ] || [ -z "$ENVFILE" ] || [ -z "$DATA" ]; then
-            echo "Thiếu file collection, environment hoặc booking_data.csv"
+          if [ -z "$COLLECTION" ] || [ -z "$ENVFILE" ] || [ ! -f users.csv ]; then
+            echo "Thieu file collection, environment hoac users.csv"
             exit 1
           fi
 
+          mkdir -p newman
           newman run "$COLLECTION" \
             -e "$ENVFILE" \
-            -d "$DATA" \
-            --reporters cli,html \
-            --reporter-html-export report.html
+            -d users.csv \
+            --env-var "api_key=${{ secrets.REQRES_API_KEY }}" \
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export ./newman/report.html
 
-      - name: 5. Upload HTML report
+      - name: Upload report artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: newman-html-report
-          path: report.html
+          name: newman-report
+          path: ./newman/report.html
