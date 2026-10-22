@@ -1,0 +1,70 @@
+name: Restful-Booker CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  api-testing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Lấy code
+        uses: actions/checkout@v4
+
+      - name: 2. Cài Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Cài Newman và HTML reporter
+        run: |
+          npm install -g newman
+          npm install -g newman-reporter-htmlextra
+
+      - name: 4. Chạy bộ Test tự động
+        run: |
+          echo "=== File trong repo ==="
+          ls -la
+
+          COLLECTION="./RestfulBooker_API_Collection.postman_collection.json"
+          ENVFILE="./RestfulBooker_Env.postman_environment.json"
+          DATA="./booking_data.csv"
+
+          if [ ! -f "$COLLECTION" ]; then
+            echo "Missing collection file: $COLLECTION"
+            find . -maxdepth 2 -type f | sort
+            exit 1
+          fi
+
+          if [ ! -f "$ENVFILE" ]; then
+            echo "Missing environment file: $ENVFILE"
+            find . -maxdepth 2 -type f | sort
+            exit 1
+          fi
+
+          if [ ! -f "$DATA" ]; then
+            echo "Missing data file: $DATA"
+            find . -maxdepth 2 -type f | sort
+            exit 1
+          fi
+
+          mkdir -p newman
+
+          echo "Collection: $COLLECTION"
+          echo "Environment: $ENVFILE"
+          echo "Data: $DATA"
+
+          newman run "$COLLECTION" \
+            -e "$ENVFILE" \
+            -d "$DATA" \
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export ./newman/report.html
+
+      - name: 5. Upload report HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-html-report
+          path: ./newman/report.html
