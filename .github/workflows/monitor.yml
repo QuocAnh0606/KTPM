@@ -1,12 +1,12 @@
-name: Production Monitor
+name: ReqRes API Test
 
 on:
-  schedule:
-    - cron: '0 * * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  monitor-api:
+  api-testing:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,18 +17,38 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Newman
-        run: npm install -g newman
+      - name: Install Newman and htmlextra reporter
+        run: npm install -g newman newman-reporter-htmlextra
 
-      - name: Run monitor
+      - name: Run data-driven tests (users.csv)
         run: |
-          MONITOR=$(ls Production_Monitor_ReqRes*.json | head -n 1)
-          echo "Monitor collection: $MONITOR"
+          ls -la
 
-          if [ -z "$MONITOR" ]; then
-            echo "Khong tim thay file Production_Monitor_ReqRes*.json"
-            ls -la
+          # Tự dò file environment (nội dung có _postman_variable_scope)
+          ENVFILE=$(grep -l '"_postman_variable_scope"' *.json | head -n 1)
+          # Tự dò file collection chính (bỏ qua file Monitor và environment)
+          COLLECTION=$(ls *.json | grep -v -i 'monitor' | grep -v -F "$ENVFILE" | head -n 1)
+
+          echo "Collection: $COLLECTION"
+          echo "Environment: $ENVFILE"
+
+          if [ -z "$COLLECTION" ] || [ -z "$ENVFILE" ] || [ ! -f users.csv ]; then
+            echo "Thieu file collection, environment hoac users.csv"
             exit 1
           fi
 
-          newman run "$MONITOR" --env-var "api_key=${{ secrets.REQRES_API_KEY }}"
+          mkdir -p newman
+          newman run "$COLLECTION" \
+            -e "$ENVFILE" \
+            -d users.csv \
+            --env-var "baseUrl=https://reqres.in" \
+            --env-var "api_key=${{ secrets.REQRES_API_KEY }}" \
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export ./newman/report.html
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report
+          path: ./newman/report.html
